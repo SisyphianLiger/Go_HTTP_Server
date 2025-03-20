@@ -32,9 +32,9 @@ func splitStringByNewline(buffer []byte) (string, string) {
 
 
 
-func printChannels(channel <-chan string) {
-	for str := range channel {
-		fmt.Printf("read: %v \n", str)
+func printChannels[T any](channel <-chan T) {
+	for value := range channel {
+		fmt.Printf("read: %v \n", value)
 	}
 }
 
