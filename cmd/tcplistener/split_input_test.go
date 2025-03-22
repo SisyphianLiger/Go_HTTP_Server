@@ -12,7 +12,7 @@ func TestStringSplit_No_Split(t *testing.T) {
 		t.Error("Incorrect Testing Input")
 	}
 
-	outputOne, outputTwo := SplitStringByNewline(testOneNoNewLine)
+	outputOne, outputTwo := splitStringByNewline(testOneNoNewLine)
 
 	if outputOne != testOne && outputTwo != "" {
 		t.Errorf("Split failed: outputOne: %s\n outputTwo %s\n", outputOne, outputTwo)
@@ -27,7 +27,7 @@ func TestStringSplit_Split(t *testing.T) {
 		t.Error("Incorrect Testing Input")
 	}
 
-	outputOne, outputTwo := SplitStringByNewline(testTwoNewLine)
+	outputOne, outputTwo := splitStringByNewline(testTwoNewLine)
 
 	if outputOne != "Test" && outputTwo != "One" {
 		t.Errorf("Split failed, outputOne: %s and outputTwo %s\n", outputOne, outputTwo)
