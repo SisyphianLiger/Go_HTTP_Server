@@ -17,7 +17,7 @@ func splitStringByNewline(buffer []byte) (string, string) {
 
 	idx := strings.IndexRune(input, '\n') 
 
-	if idx != -1 {
+	if idx != -1 || idx == len(buffer) {
 		partOne = string(buffer[:idx])
 		partTwo = string(buffer[idx+1:])
 
