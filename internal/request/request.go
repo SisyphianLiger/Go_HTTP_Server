@@ -1,12 +1,11 @@
 package request
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"unicode"
-
 )
 
 type Request struct {
@@ -18,6 +17,14 @@ type RequestLine struct {
 	RequestTarget string
 	Method	string
 }
+
+type chunkReader struct {
+	data            string
+	numBytesPerRead int
+	pos             int
+}
+
+const crlf = "\r\n"
 
 func verifyHttpVersionIsUpper(httpVersion string) (string,error) {
 	
@@ -45,28 +52,33 @@ func verifySemanticHTTP(http string) (string,error) {
 	return HTTPVersion[1], nil
 }
 
-func parseIntoRequestLine(request string) (RequestLine, error) {
+func parseRequestLine(request []byte) (*RequestLine, error) {
+	
+	idx := bytes.Index(request, []byte(crlf))
+	if idx == -1 {
+		return &RequestLine{}, fmt.Errorf("Could not find crlf in request-line")
+	}
 
-	parsedData := strings.Split(request, "\r\n")
-	requestLines := strings.Split(parsedData[0], " ")	
+	parsedData := string(request[:idx])
+	requestLines := strings.Split(parsedData, " ")	
 
 	if len(requestLines) != 3 {
-		return RequestLine{}, fmt.Errorf("Invalid Format: Require METHOD TARGET HTTPVERSION, Got: %s\n", parsedData[0])
+		return &RequestLine{}, fmt.Errorf("Invalid Format: Require METHOD TARGET HTTPVERSION, Got: %s\n", requestLines)
 	}
 
 	requestTarget := requestLines[1]
 
 	method, methodErr := verifyHttpVersionIsUpper(requestLines[0]);
 	if  methodErr != nil {
-		return RequestLine{}, methodErr
+		return &RequestLine{}, methodErr
 	}
 
 	version, versionErr := verifySemanticHTTP(requestLines[2]);
 	if  versionErr != nil {
-		return RequestLine{}, versionErr	
+		return &RequestLine{}, versionErr	
 	}
 
-	return RequestLine{
+	return &RequestLine{
 		HttpVersion: version,
 		RequestTarget: requestTarget,
 		Method: method,
@@ -74,20 +86,40 @@ func parseIntoRequestLine(request string) (RequestLine, error) {
 }
 
 
-func requestFromReader(reader io.Reader) (*Request, error) {
-	req, reqErr := io.ReadAll(reader)	
-		
-	if reqErr != nil {
-		fmt.Fprintf(os.Stderr, "Error Parsing Data: %v\n", reqErr)
-		os.Exit(1)
+func RequestFromReader(reader io.Reader) (*Request, error) {
+	rawBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
 	}
+		
 
-	// discard everything after request line
-	reqData, err := parseIntoRequestLine(string(req))
+	reqData, err := parseRequestLine(rawBytes)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return &Request{ reqData }, nil
+	return &Request{ RequestLine: *reqData }, nil
 	 
+}
+
+
+
+// Read reads up to len(p) or numBytesPerRead bytes from the string per call
+// its useful for simulating reading a variable number of bytes per chunk from a network connection
+func (cr *chunkReader) Read(p []byte) (n int, err error) {
+	if cr.pos >= len(cr.data) {
+		return 0, io.EOF
+	}
+	endIndex := cr.pos + cr.numBytesPerRead
+	if endIndex > len(cr.data) {
+		endIndex = len(cr.data)
+	}
+	n = copy(p, cr.data[cr.pos:endIndex])
+	cr.pos += n
+	if n > cr.numBytesPerRead {
+		n = cr.numBytesPerRead
+		cr.pos -= n - cr.numBytesPerRead
+	}
+	return n, nil
 }
