@@ -4,13 +4,23 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"errors"
 	"strings"
 	"unicode"
 )
 
 type Request struct {
 	RequestLine RequestLine 
+	State RequestState
 }
+
+type RequestState int
+
+const (
+	Initialized = iota
+	Done 
+)
+
 
 type RequestLine struct {
 	HttpVersion string
@@ -18,15 +28,11 @@ type RequestLine struct {
 	Method	string
 }
 
-type chunkReader struct {
-	data            string
-	numBytesPerRead int
-	pos             int
-}
 
 const crlf = "\r\n"
+const bufferSize = 8
 
-func verifyHttpVersionIsUpper(httpVersion string) (string,error) {
+func verifyMethodIsUpper(httpVersion string) (string,error) {
 	
 	if httpVersion == "" {
 		return "",fmt.Errorf("The String is Empty\n")
@@ -37,12 +43,10 @@ func verifyHttpVersionIsUpper(httpVersion string) (string,error) {
 			return "",fmt.Errorf("The HTTP Version is not UPPERCASE: %s, Incorrect HTTP Version Specification\n", httpVersion)
 		}
 	}
-
 	return httpVersion, nil
 }
 
 func verifySemanticHTTP(http string) (string,error) {
-	
 	if http != "HTTP/1.1" {
 		return "", fmt.Errorf("Not the correct HTTP Version: Found %s", http)
 	}
@@ -52,74 +56,105 @@ func verifySemanticHTTP(http string) (string,error) {
 	return HTTPVersion[1], nil
 }
 
-func parseRequestLine(request []byte) (*RequestLine, error) {
-	
-	idx := bytes.Index(request, []byte(crlf))
-	if idx == -1 {
-		return &RequestLine{}, fmt.Errorf("Could not find crlf in request-line")
-	}
 
-	parsedData := string(request[:idx])
-	requestLines := strings.Split(parsedData, " ")	
+func parseRequestLine(data []byte) (*RequestLine, int, error) {
+	idx := bytes.Index(data, []byte(crlf))
+	if idx == -1 {
+		return nil, 0, nil
+	}
+	requestLineText := string(data[:idx])
+	requestLine, err := requestLineFromString(requestLineText)
+	if err != nil {
+		return nil, 0, err
+	}
+	return requestLine, idx + 2, nil
+}
+
+func requestLineFromString(str string) (*RequestLine, error) {
+
+	requestLines := strings.Split(str, " ")
+
 
 	if len(requestLines) != 3 {
-		return &RequestLine{}, fmt.Errorf("Invalid Format: Require METHOD TARGET HTTPVERSION, Got: %s\n", requestLines)
+		return &RequestLine{}, fmt.Errorf("Invalid Format: Require METHOD TARGET HTTPVERSION, Got: %s with Length: %d\n", requestLines, len(requestLines))
 	}
+
 
 	requestTarget := requestLines[1]
 
-	method, methodErr := verifyHttpVersionIsUpper(requestLines[0]);
+	method, methodErr := verifyMethodIsUpper(requestLines[0]);
 	if  methodErr != nil {
 		return &RequestLine{}, methodErr
 	}
 
 	version, versionErr := verifySemanticHTTP(requestLines[2]);
 	if  versionErr != nil {
-		return &RequestLine{}, versionErr	
+		return  &RequestLine{}, versionErr	
 	}
+	
 
-	return &RequestLine{
-		HttpVersion: version,
-		RequestTarget: requestTarget,
-		Method: method,
-	}, nil 
+	return &RequestLine{ HttpVersion: version, Method: method, RequestTarget: requestTarget }, nil 
 }
 
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	rawBytes, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
+	
+	buf := make([]byte, bufferSize, bufferSize)
+	readToIndex := 0
+
+	req := &Request{ State: Initialized}
+	
+
+	for req.State != Done {
+		if readToIndex >= len(buf) {
+			newBuf := make([]byte, len(buf)*2)
+			copy(newBuf, buf)
+			buf = newBuf
+		}
+
+		numBytesRead, err := reader.Read(buf[readToIndex:])
+		if err != nil {
+			if errors.Is(io.EOF, err) {
+				req.State = Done
+				break
+			}
+			return nil, err
+		}
+		readToIndex += numBytesRead
+
+		numBytesParsed, err := req.parse(buf[:readToIndex])
+		if err != nil {
+			return nil, err
+		}
+
+		copy(buf, buf[numBytesParsed:])
+		readToIndex -= numBytesParsed
 	}
-		
-
-	reqData, err := parseRequestLine(rawBytes)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &Request{ RequestLine: *reqData }, nil
+	return req, nil
 	 
 }
 
-
-
-// Read reads up to len(p) or numBytesPerRead bytes from the string per call
-// its useful for simulating reading a variable number of bytes per chunk from a network connection
-func (cr *chunkReader) Read(p []byte) (n int, err error) {
-	if cr.pos >= len(cr.data) {
-		return 0, io.EOF
+// Accepts Next slice of bytes for request
+// updates state to parser in RequestLine
+// returns number of bytes consumed (if successful) and error 
+func (r *Request) parse(data []byte) (int, error) {
+	switch r.State {
+		case Initialized:
+			requestLine, bytes, err := parseRequestLine(data)
+			if err != nil {	
+				return 0, err
+			}
+			if bytes == 0 {
+				return 0, nil
+			}
+			r.RequestLine = *requestLine
+			r.State = Done
+			return bytes,nil
+		case Done:
+			return 0, fmt.Errorf("Error: Trying to read data in a done state")
+		default:
+			return 0, fmt.Errorf("Error: Unknown State")
 	}
-	endIndex := cr.pos + cr.numBytesPerRead
-	if endIndex > len(cr.data) {
-		endIndex = len(cr.data)
-	}
-	n = copy(p, cr.data[cr.pos:endIndex])
-	cr.pos += n
-	if n > cr.numBytesPerRead {
-		n = cr.numBytesPerRead
-		cr.pos -= n - cr.numBytesPerRead
-	}
-	return n, nil
+	
 }
+
