@@ -1,4 +1,4 @@
-module github.com/SisyphianLiger/Go_HTTP_Server.git
+module github.com/SisyphianLiger/Go_HTTP_Server
 
 go 1.23.2
 

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"errors"
+	// "errors"
 	"fmt"
-	"io"
+	// "io"
 	"strings"
 )
 
@@ -38,40 +38,40 @@ func printChannels[T any](channel <-chan T) {
 	}
 }
 
-func getLinesChannel(file io.ReadCloser) <-chan string {
-	
-	stringStream := make(chan string) 
-	
-	go func () {
-		defer close(stringStream)
-		
-		buf := make([]byte, 8)
-		stringDisplay := ""
-		for {
-
-			buf_len, err := file.Read(buf)
-
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					stringStream <- stringDisplay
-					break
-				}
-				fmt.Printf("Error: %s\n", err.Error())
-			}
-
-
-			first,second := splitStringByNewline(buf[:buf_len])
-
-
-			if second == "" {
-				stringDisplay += first
-			} else {
-				stringDisplay += first
-				stringStream <- stringDisplay
-				stringDisplay = second
-			}
-		}
-	}()
-
-	return stringStream
-}
+// func getLinesChannel(file io.ReadCloser) <-chan string {
+// 	
+// 	stringStream := make(chan string) 
+// 	
+// 	go func () {
+// 		defer close(stringStream)
+// 		
+// 		buf := make([]byte, 8)
+// 		stringDisplay := ""
+// 		for {
+//
+// 			buf_len, err := file.Read(buf)
+//
+// 			if err != nil {
+// 				if errors.Is(err, io.EOF) {
+// 					stringStream <- stringDisplay
+// 					break
+// 				}
+// 				fmt.Printf("Error: %s\n", err.Error())
+// 			}
+//
+//
+// 			first,second := splitStringByNewline(buf[:buf_len])
+//
+//
+// 			if second == "" {
+// 				stringDisplay += first
+// 			} else {
+// 				stringDisplay += first
+// 				stringStream <- stringDisplay
+// 				stringDisplay = second
+// 			}
+// 		}
+// 	}()
+//
+// 	return stringStream
+// }

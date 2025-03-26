@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"github.com/SisyphianLiger/Go_HTTP_Server/internal/request"
 )
 
 
@@ -37,13 +38,18 @@ func main() {
 			break
 		}
 		fmt.Println("Accepted Conntection from", conn.RemoteAddr())
-		
-		printChannels(getLinesChannel(conn))
+
+		req, err := request.RequestFromReader(conn)
+
+		if err != nil {
+			log.Fatalf("Error Parsing Data: %v", err.Error())
+		}
+
+		request.PrintRequest(req)
+
 	
 	}
 	fmt.Printf("Closing Connection from: %s", PORT)
 	
-
-
 
 }

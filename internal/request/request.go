@@ -158,3 +158,11 @@ func (r *Request) parse(data []byte) (int, error) {
 	
 }
 
+func PrintRequest(r *Request) {
+	fmt.Printf("Request line:\n")
+	fmt.Printf("- Method: %s\n", r.RequestLine.Method)
+	fmt.Printf("- Target: %s\n", r.RequestLine.RequestTarget)
+	fmt.Printf("- Version: %s\n", r.RequestLine.HttpVersion)
+
+}
+
